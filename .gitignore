@@ -63,3 +63,5 @@ crashlytics-build.properties
 
 
 External/
+
+Assets/K4A-VFX/Plugins/*.dll
