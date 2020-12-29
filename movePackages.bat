@@ -1,0 +1,1 @@
+COPY .\External\Package\Microsoft.Azure.Kinect.Sensor.1.4.1\lib\native\amd64\release\depthengine_2_0.dll .\Assets\Packages\depthengine_2_0.dll
