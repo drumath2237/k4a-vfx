@@ -5,6 +5,7 @@ using Cysharp.Threading.Tasks;
 using Cysharp.Threading.Tasks.Linq;
 using UnityEngine;
 using Microsoft.Azure.Kinect.Sensor;
+using UnityEngine.PlayerLoop;
 
 namespace K4A.VFX
 {
@@ -16,11 +17,13 @@ namespace K4A.VFX
 
         private Material _material;
 
-        private Color[] _colors = default;
+        private Color32[] _colors;
+
+        private static readonly int MainTex = Shader.PropertyToID("_BaseColorMap");
 
         private void Start()
         {
-            _material = GetComponent<Renderer>().material;
+            _material = GetComponent<MeshRenderer>().material;
 
             kinect = Device.Open();
             kinect.StartCameras(new DeviceConfiguration
@@ -36,52 +39,47 @@ namespace K4A.VFX
 
             UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
                 {
-                    while (isRunning)
+                    await UniTask.Run(() =>
                     {
-                        using (Capture capture = await UniTask.Run(() => kinect.GetCapture(), cancellationToken: token))
+                        while (isRunning)
                         {
-                            writer.YieldAsync(capture.Color.GetPixels<BGRA>().ToArray());
+                            using (var capture = kinect.GetCapture())
+                            {
+                                writer.YieldAsync(capture.Color.GetPixels<BGRA>().ToArray());
+                            }
                         }
-                    }
-                }).Select(arr =>
+                    }, cancellationToken: token);
+                })
+                .Select(arr =>
                 {
                     return arr.Select(bgra =>
-                            new Color(bgra.R / 255.0f, bgra.G / 255.0f, bgra.B / 255.0f))
+                            new Color32(bgra.R, bgra.G, bgra.B, 255))
                         .ToArray();
                 })
-                .ForEachAsync((colors, token) =>
-                {
-                    Debug.Log(colors[0].ToString());
-                    _colors = colors;
-                }, this.GetCancellationTokenOnDestroy());
-
-            StartCoroutine(TextureLoop());
+                .ForEachAwaitWithCancellationAsync(
+                    async (colors, token) =>
+                    {
+                        await UniTask.Run(() => { _colors = colors; }, cancellationToken: token);
+                    }, this.GetCancellationTokenOnDestroy());
         }
 
-        IEnumerator TextureLoop()
+        private void Update()
         {
-            while (true)
+            if (_colors != null)
             {
-                if (_colors != null)
+                var width = kinect.GetCalibration().ColorCameraCalibration.ResolutionWidth;
+                var height = kinect.GetCalibration().ColorCameraCalibration.ResolutionHeight;
+                if (_colors.Length == width * height)
                 {
-                    var cameraCalibration = kinect.GetCalibration().ColorCameraCalibration;
-                    var width = cameraCalibration.ResolutionWidth;
-                    var height = cameraCalibration.ResolutionHeight;
-
-                    if (_colors.Length == width * height)
-                    {
-                        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
-                        texture.SetPixels(0, 0, width, height, _colors);
-                        texture.Apply();
-                        Destroy(_material.mainTexture);
-                        _material.mainTexture = texture;
-                    }
+                    var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                    texture.SetPixels32(0, 0, width, height, _colors);
+                    texture.Apply();
+                    Destroy(_material.GetTexture(MainTex));
+                    _material.SetTexture(MainTex, texture);
                 }
-
-                yield return null;
-                yield return null;
             }
         }
+
 
         private void OnApplicationQuit()
         {
