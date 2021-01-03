@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Threading;
+using System.Collections;
+using System.Linq;
+using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks.Linq;
 using UnityEngine;
 using Microsoft.Azure.Kinect.Sensor;
-using UnityEngine.UI;
-using Cysharp.Threading.Tasks;
-using Cysharp.Threading;
-using Cysharp.Threading.Tasks.Linq;
-using ICSharpCode.NRefactory.Ast;
 
 namespace K4A.VFX
 {
@@ -14,10 +12,16 @@ namespace K4A.VFX
     {
         private Device kinect;
 
-        private CancellationTokenSource cts;
+        private bool isRunning = false;
+
+        private Material _material;
+
+        private Color[] _colors = default;
 
         private void Start()
         {
+            _material = GetComponent<Renderer>().material;
+
             kinect = Device.Open();
             kinect.StartCameras(new DeviceConfiguration
             {
@@ -27,24 +31,61 @@ namespace K4A.VFX
                 SynchronizedImagesOnly = true,
                 CameraFPS = FPS.FPS30
             });
-            
-            cts = new CancellationTokenSource();
 
-            var ctn = cts.Token;
+            isRunning = true;
 
-            var sensor = new AsyncAzureKinectSensorCaptureEnumerable(kinect, ctn);
-            sensor.ForEachAsync((capture, token) =>
+            UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
+                {
+                    while (isRunning)
+                    {
+                        using (Capture capture = await UniTask.Run(() => kinect.GetCapture(), cancellationToken: token))
+                        {
+                            writer.YieldAsync(capture.Color.GetPixels<BGRA>().ToArray());
+                        }
+                    }
+                }).Select(arr =>
+                {
+                    return arr.Select(bgra =>
+                            new Color(bgra.R / 255.0f, bgra.G / 255.0f, bgra.B / 255.0f))
+                        .ToArray();
+                })
+                .ForEachAsync((colors, token) =>
+                {
+                    Debug.Log(colors[0].ToString());
+                    _colors = colors;
+                }, this.GetCancellationTokenOnDestroy());
+
+            StartCoroutine(TextureLoop());
+        }
+
+        IEnumerator TextureLoop()
+        {
+            while (true)
             {
-                Debug.Log(capture.Color.DeviceTimestamp.TotalSeconds);
-            }, ctn);
-            
+                if (_colors != null)
+                {
+                    var cameraCalibration = kinect.GetCalibration().ColorCameraCalibration;
+                    var width = cameraCalibration.ResolutionWidth;
+                    var height = cameraCalibration.ResolutionHeight;
 
+                    if (_colors.Length == width * height)
+                    {
+                        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                        texture.SetPixels(0, 0, width, height, _colors);
+                        texture.Apply();
+                        Destroy(_material.mainTexture);
+                        _material.mainTexture = texture;
+                    }
+                }
+
+                yield return null;
+                yield return null;
+            }
         }
 
         private void OnApplicationQuit()
         {
-            Debug.Log("dispose in monobehavior");
-            cts.Cancel();
+            isRunning = false;
             if (kinect != null)
             {
                 kinect.StopCameras();
