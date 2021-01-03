@@ -15,22 +15,22 @@ namespace K4A.VFX
         private Device kinect;
 
         private bool isRunning = false;
-
-        private Material _material;
-
-        private byte[] _rawTexture;
+        
+        private byte[] _rawTexture = null;
 
         private static readonly int MainTex = Shader.PropertyToID("_BaseColorMap");
 
         private Color32[] _colors;
 
         private CameraCalibration _colorCameraCalibration;
+        private CameraCalibration _depthCameraCalibration;
+        private Transformation _kinectTransformation;
+
+        private Texture2D _texture2D;
 
 
         private void Start()
         {
-            _material = GetComponent<MeshRenderer>().material;
-
             kinect = Device.Open();
             kinect.StartCameras(new DeviceConfiguration
             {
@@ -44,6 +44,13 @@ namespace K4A.VFX
             isRunning = true;
 
             _colorCameraCalibration = kinect.GetCalibration().ColorCameraCalibration;
+            _depthCameraCalibration = kinect.GetCalibration().DepthCameraCalibration;
+            _kinectTransformation = kinect.GetCalibration().CreateTransformation();
+            
+            _texture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
+                _depthCameraCalibration.ResolutionHeight, TextureFormat.BGRA32, false);
+            GetComponent<MeshRenderer>().material.SetTexture(MainTex, _texture2D);
+            
 
 
             // UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
@@ -89,7 +96,9 @@ namespace K4A.VFX
                 {
                     using (var capture = kinect.GetCapture())
                     {
-                        _rawTexture = capture.Color.Memory.ToArray();
+                        Image colorImage = _kinectTransformation.ColorImageToDepthCamera(capture);
+
+                        _rawTexture = colorImage.Memory.ToArray();
                     }
                 }
             }, true, this.GetCancellationTokenOnDestroy()).Forget();
@@ -133,13 +142,8 @@ namespace K4A.VFX
         {
             if (_rawTexture != null)
             {
-                var texture2D = new Texture2D(_colorCameraCalibration.ResolutionWidth,
-                    _colorCameraCalibration.ResolutionHeight, TextureFormat.BGRA32, false);
-
-                texture2D.LoadRawTextureData(_rawTexture);
-                texture2D.Apply();
-                Destroy(_material.GetTexture(MainTex));
-                _material.SetTexture(MainTex, texture2D);
+                _texture2D.LoadRawTextureData(_rawTexture);
+                _texture2D.Apply();
             }
         }
 
