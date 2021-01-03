@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Linq;
+using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Cysharp.Threading.Tasks.Linq;
 using UnityEngine;
@@ -17,9 +18,14 @@ namespace K4A.VFX
 
         private Material _material;
 
-        private Color32[] _colors;
+        private byte[] _rawTexture;
 
         private static readonly int MainTex = Shader.PropertyToID("_BaseColorMap");
+
+        private Color32[] _colors;
+
+        private CameraCalibration _colorCameraCalibration;
+
 
         private void Start()
         {
@@ -37,46 +43,103 @@ namespace K4A.VFX
 
             isRunning = true;
 
-            UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
+            _colorCameraCalibration = kinect.GetCalibration().ColorCameraCalibration;
+
+
+            // UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
+            //     {
+            //         await UniTask.Run(() =>
+            //         {
+            //             while (isRunning)
+            //                 using (var capture = kinect.GetCapture())
+            //                     writer.YieldAsync(capture.Color.GetPixels<BGRA>().ToArray());
+            //         }, cancellationToken: token);
+            //     })
+            // .Select(arr =>
+            // {
+            //     return arr.Select(bgra =>
+            //             new Color32(bgra.R, bgra.G, bgra.B, bgra.A))
+            //         .ToArray();
+            // })
+            // .ForEachAsync(
+            //     (colors, token) => { _colors = colors; }, this.GetCancellationTokenOnDestroy());
+            //
+
+
+            // UniTaskAsyncEnumerable.Create<byte[]>(async (writer, token) =>
+            // {
+            //     await UniTask.Run(() =>
+            //     {
+            //         while (isRunning)
+            //         {
+            //             using (var capture = kinect.GetCapture())
+            //             {
+            //                 writer.YieldAsync(capture.Color.Memory.ToArray());
+            //             }
+            //         }
+            //     }, cancellationToken: token);
+            // }).ForEachAsync(bytes => { _rawTexture = bytes; }, this.GetCancellationTokenOnDestroy());
+
+
+            // KinectLoop();
+
+            UniTask.Run(() =>
+            {
+                while (isRunning)
                 {
-                    await UniTask.Run(() =>
+                    using (var capture = kinect.GetCapture())
                     {
-                        while (isRunning)
+                        _rawTexture = capture.Color.Memory.ToArray();
+                    }
+                }
+            }, true, this.GetCancellationTokenOnDestroy()).Forget();
+        }
+
+        async void KinectLoop()
+        {
+            // while (isRunning)
+            // {
+            //     using (var capture = await Task.Run(() => kinect.GetCapture()))
+            //     {
+            //         // var bgraImage = capture.Color.GetPixels<BGRA>().ToArray();
+            //         // _colors = bgraImage.Select(bgra => new Color32(bgra.R, bgra.G, bgra.B, bgra.A)).ToArray();
+            //         _rawTexture = capture.Color.Memory.ToArray();
+            //     }
+            // }
+
+            await Task.Run(() =>
+            {
+                while (isRunning)
+                {
+                    using (var capture = kinect.GetCapture())
+                    {
+                        // var bgraImage = capture.Color.GetPixels<BGRA>().ToArray();
+                        // _colors = bgraImage.Select(bgra => new Color32(bgra.R, bgra.G, bgra.B, bgra.A)).ToArray();
+                        try
                         {
-                            using (var capture = kinect.GetCapture())
-                            {
-                                writer.YieldAsync(capture.Color.GetPixels<BGRA>().ToArray());
-                            }
+                            _rawTexture = capture.Color.Memory.ToArray();
                         }
-                    }, cancellationToken: token);
-                })
-                .Select(arr =>
-                {
-                    return arr.Select(bgra =>
-                            new Color32(bgra.R, bgra.G, bgra.B, 255))
-                        .ToArray();
-                })
-                .ForEachAwaitWithCancellationAsync(
-                    async (colors, token) =>
-                    {
-                        await UniTask.Run(() => { _colors = colors; }, cancellationToken: token);
-                    }, this.GetCancellationTokenOnDestroy());
+                        catch (Exception e)
+                        {
+                            Debug.Log(e);
+                            throw;
+                        }
+                    }
+                }
+            });
         }
 
         private void Update()
         {
-            if (_colors != null)
+            if (_rawTexture != null)
             {
-                var width = kinect.GetCalibration().ColorCameraCalibration.ResolutionWidth;
-                var height = kinect.GetCalibration().ColorCameraCalibration.ResolutionHeight;
-                if (_colors.Length == width * height)
-                {
-                    var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
-                    texture.SetPixels32(0, 0, width, height, _colors);
-                    texture.Apply();
-                    Destroy(_material.GetTexture(MainTex));
-                    _material.SetTexture(MainTex, texture);
-                }
+                var texture2D = new Texture2D(_colorCameraCalibration.ResolutionWidth,
+                    _colorCameraCalibration.ResolutionHeight, TextureFormat.BGRA32, false);
+
+                texture2D.LoadRawTextureData(_rawTexture);
+                texture2D.Apply();
+                Destroy(_material.GetTexture(MainTex));
+                _material.SetTexture(MainTex, texture2D);
             }
         }
 
