@@ -138,13 +138,9 @@ namespace K4A.VFX
 
                         // _rawDepthData = capture.Depth.Memory.ToArray();
 
-                        var depthValues = capture.Depth.GetPixels<ushort>().ToArray();
-                        xyzs = depthValues.Select(arg => Mathf.Clamp01(arg/1000.0f)).Select(arg => new Color(arg, arg, arg)).ToArray();
-                        
-                        // Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
-                        //
-                        // xyzs = xyzImage.GetPixels<Short3>().ToArray()
-                        // .Select(short3 => new Color(short3.X, short3.Y, short3.Z, 1.0f)).ToArray();
+                        Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
+                        xyzs = xyzImage.GetPixels<Short3>().ToArray()
+                            .Select(short3 => new Color(short3.X/100.0f, short3.Z/100.0f, short3.Y/100.0f)).ToArray();
                     }
                 }
             }, true, this.GetCancellationTokenOnDestroy()).Forget();
