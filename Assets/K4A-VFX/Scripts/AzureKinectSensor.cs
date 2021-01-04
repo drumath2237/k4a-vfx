@@ -1,12 +1,14 @@
 ﻿using System;
-using System.Collections;
+using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Cysharp.Threading.Tasks.Linq;
 using UnityEngine;
 using Microsoft.Azure.Kinect.Sensor;
-using UnityEngine.PlayerLoop;
+using UnityEditor.MemoryProfiler;
+using UnityEngine.VFX;
+using Color = UnityEngine.Color;
 
 namespace K4A.VFX
 {
@@ -15,19 +17,29 @@ namespace K4A.VFX
         private Device kinect;
 
         private bool isRunning = false;
-        
-        private byte[] _rawTexture = null;
+
+        private byte[] _rawColorData = null;
+        private byte[] _rawDepthData = null;
 
         private static readonly int MainTex = Shader.PropertyToID("_BaseColorMap");
 
-        private Color32[] _colors;
+        private Color32[] _colors = null;
+        private Color[] xyzs = null;
 
         private CameraCalibration _colorCameraCalibration;
         private CameraCalibration _depthCameraCalibration;
         private Transformation _kinectTransformation;
 
-        private Texture2D _texture2D;
+        private Texture2D _colorTexture2D;
+        private Texture2D _depthTexture2D;
 
+        [SerializeField] private VisualEffect _effect;
+
+        private readonly int propertyWidth = Shader.PropertyToID("width");
+        private readonly int propertyHeight = Shader.PropertyToID("height");
+        private readonly int propertyColorImage = Shader.PropertyToID("colorImage");
+        private readonly int propertyXyzImage = Shader.PropertyToID("xyzImage");
+        
 
         private void Start()
         {
@@ -43,15 +55,36 @@ namespace K4A.VFX
 
             isRunning = true;
 
+            // get calibrations
             _colorCameraCalibration = kinect.GetCalibration().ColorCameraCalibration;
             _depthCameraCalibration = kinect.GetCalibration().DepthCameraCalibration;
             _kinectTransformation = kinect.GetCalibration().CreateTransformation();
             
-            _texture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
+            // texture settings
+            _colorTexture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
                 _depthCameraCalibration.ResolutionHeight, TextureFormat.BGRA32, false);
-            GetComponent<MeshRenderer>().material.SetTexture(MainTex, _texture2D);
+            // GetComponent<MeshRenderer>().material.SetTexture(MainTex, _colorTexture2D);
             
+            _depthTexture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
+                _depthCameraCalibration.ResolutionHeight, TextureFormat.RGBAFloat, false);
+            // _depthTexture2D.wrapMode = TextureWrapMode.Clamp;
+            _depthTexture2D.filterMode = FilterMode.Point;
+            GetComponent<MeshRenderer>().material.SetTexture(MainTex, _depthTexture2D);
 
+
+            // plane scaling
+            transform.localScale = new Vector3(1f, 1f,
+                (float) _depthCameraCalibration.ResolutionHeight / _depthCameraCalibration.ResolutionWidth);
+            
+            
+            // vfx settings
+            if (_effect != null)
+            {
+                _effect.SetUInt(propertyWidth, (uint)_depthCameraCalibration.ResolutionWidth);
+                _effect.SetUInt(propertyHeight, (uint) _depthCameraCalibration.ResolutionHeight);
+                _effect.SetTexture(propertyColorImage, _colorTexture2D);
+                _effect.SetTexture(propertyXyzImage, _depthTexture2D);
+            }
 
             // UniTaskAsyncEnumerable.Create<BGRA[]>(async (writer, token) =>
             //     {
@@ -94,11 +127,24 @@ namespace K4A.VFX
             {
                 while (isRunning)
                 {
+                    using(var fakeDepth = new Image(ImageFormat.Depth16, _depthCameraCalibration.ResolutionWidth, _depthCameraCalibration.ResolutionHeight))
                     using (var capture = kinect.GetCapture())
                     {
                         Image colorImage = _kinectTransformation.ColorImageToDepthCamera(capture);
 
-                        _rawTexture = colorImage.Memory.ToArray();
+                        _rawColorData = colorImage.Memory.ToArray();
+                        // _colors = colorImage.GetPixels<BGRA>().ToArray()
+                        //     .Select(bgra => new Color32(bgra.R, bgra.G, bgra.B, bgra.A)).ToArray();
+
+                        // _rawDepthData = capture.Depth.Memory.ToArray();
+
+                        var depthValues = capture.Depth.GetPixels<ushort>().ToArray();
+                        xyzs = depthValues.Select(arg => Mathf.Clamp01(arg/1000.0f)).Select(arg => new Color(arg, arg, arg)).ToArray();
+                        
+                        // Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
+                        //
+                        // xyzs = xyzImage.GetPixels<Short3>().ToArray()
+                        // .Select(short3 => new Color(short3.X, short3.Y, short3.Z, 1.0f)).ToArray();
                     }
                 }
             }, true, this.GetCancellationTokenOnDestroy()).Forget();
@@ -126,7 +172,7 @@ namespace K4A.VFX
                         // _colors = bgraImage.Select(bgra => new Color32(bgra.R, bgra.G, bgra.B, bgra.A)).ToArray();
                         try
                         {
-                            _rawTexture = capture.Color.Memory.ToArray();
+                            _rawColorData = capture.Color.Memory.ToArray();
                         }
                         catch (Exception e)
                         {
@@ -140,10 +186,25 @@ namespace K4A.VFX
 
         private void Update()
         {
-            if (_rawTexture != null)
+            if (_rawColorData != null)
             {
-                _texture2D.LoadRawTextureData(_rawTexture);
-                _texture2D.Apply();
+                _colorTexture2D.LoadRawTextureData(_rawColorData);
+                _colorTexture2D.Apply();
+            }
+            else if (_colors != null)
+            {
+                _colorTexture2D.SetPixels32(_colors);
+                _colorTexture2D.Apply();
+            }
+
+            if (_rawDepthData != null)
+            {
+                _depthTexture2D.LoadRawTextureData(_rawDepthData);
+                _depthTexture2D.Apply();
+            }else if (xyzs != null)
+            {
+                _depthTexture2D.SetPixels(xyzs);
+                _depthTexture2D.Apply();
             }
         }
 
