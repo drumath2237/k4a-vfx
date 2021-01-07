@@ -2,18 +2,19 @@
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using Microsoft.Azure.Kinect.Sensor;
+using UnityEngine.Serialization;
 using UnityEngine.VFX;
 
 namespace K4A.VFX
 {
     public class AzureKinectSensor : MonoBehaviour
     {
-        private Device kinect;
+        private Device _kinect;
 
-        private bool isRunning = false;
+        private bool _isRunning = false;
 
         private byte[] _rawColorData = null;
-        private Color[] xyzs = null;
+        private Color[] _xyzs = null;
 
         private static readonly int MainTex = Shader.PropertyToID("_BaseColorMap");
 
@@ -23,19 +24,19 @@ namespace K4A.VFX
         private Texture2D _colorTexture2D;
         private Texture2D _depthTexture2D;
 
-        [SerializeField] private VisualEffect _effect;
+        [SerializeField] private VisualEffect effect;
 
-        private readonly int propertyWidth = Shader.PropertyToID("width");
-        private readonly int propertyHeight = Shader.PropertyToID("height");
-        private readonly int propertyColorImage = Shader.PropertyToID("colorImage");
-        private readonly int propertyXyzImage = Shader.PropertyToID("xyzImage");
+        private readonly int _propertyWidth = Shader.PropertyToID("width");
+        private readonly int _propertyHeight = Shader.PropertyToID("height");
+        private readonly int _propertyColorImage = Shader.PropertyToID("colorImage");
+        private readonly int _propertyXyzImage = Shader.PropertyToID("xyzImage");
 
-        [SerializeField] private GameObject _previewPlane;
+        [SerializeField] private GameObject previewPlane;
 
         private void Start()
         {
-            kinect = Device.Open();
-            kinect.StartCameras(new DeviceConfiguration
+            _kinect = Device.Open();
+            _kinect.StartCameras(new DeviceConfiguration
             {
                 ColorFormat = ImageFormat.ColorBGRA32,
                 ColorResolution = ColorResolution.R1080p,
@@ -44,52 +45,51 @@ namespace K4A.VFX
                 CameraFPS = FPS.FPS30
             });
 
-            isRunning = true;
+            _isRunning = true;
 
             // get calibrations
-            _depthCameraCalibration = kinect.GetCalibration().DepthCameraCalibration;
-            _kinectTransformation = kinect.GetCalibration().CreateTransformation();
+            _depthCameraCalibration = _kinect.GetCalibration().DepthCameraCalibration;
+            _kinectTransformation = _kinect.GetCalibration().CreateTransformation();
 
             // texture settings
             _colorTexture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
                 _depthCameraCalibration.ResolutionHeight, TextureFormat.BGRA32, false);
-            
+
             _depthTexture2D = new Texture2D(_depthCameraCalibration.ResolutionWidth,
                 _depthCameraCalibration.ResolutionHeight, TextureFormat.RGBAFloat, false)
             {
                 filterMode = FilterMode.Point
             };
-            
-            if (_previewPlane != null)
+
+            // preview panel - plane object for preview color/depth texture
+            if (previewPlane != null)
             {
-                _previewPlane.GetComponent<MeshRenderer>().material.SetTexture(MainTex, _colorTexture2D);
-                _previewPlane.transform.localScale = new Vector3(1f, 1f,
+                previewPlane.GetComponent<MeshRenderer>().material.SetTexture(MainTex, _colorTexture2D);
+                previewPlane.transform.localScale = new Vector3(1f, 1f,
                     (float) _depthCameraCalibration.ResolutionHeight / _depthCameraCalibration.ResolutionWidth);
             }
 
-
-
             // vfx settings
-            if (_effect != null)
+            if (effect != null)
             {
-                _effect.SetUInt(propertyWidth, (uint) _depthCameraCalibration.ResolutionWidth);
-                _effect.SetUInt(propertyHeight, (uint) _depthCameraCalibration.ResolutionHeight);
-                _effect.SetTexture(propertyColorImage, _colorTexture2D);
-                _effect.SetTexture(propertyXyzImage, _depthTexture2D);
+                effect.SetUInt(_propertyWidth, (uint) _depthCameraCalibration.ResolutionWidth);
+                effect.SetUInt(_propertyHeight, (uint) _depthCameraCalibration.ResolutionHeight);
+                effect.SetTexture(_propertyColorImage, _colorTexture2D);
+                effect.SetTexture(_propertyXyzImage, _depthTexture2D);
             }
 
             UniTask.Run(() =>
             {
-                while (isRunning)
+                while (_isRunning)
                 {
-                    using (var capture = kinect.GetCapture())
+                    using (var capture = _kinect.GetCapture())
                     {
                         Image colorImage = _kinectTransformation.ColorImageToDepthCamera(capture);
 
                         _rawColorData = colorImage.Memory.ToArray();
 
                         Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
-                        xyzs = xyzImage.GetPixels<Short3>().ToArray()
+                        _xyzs = xyzImage.GetPixels<Short3>().ToArray()
                             .Select(short3 => new Color(short3.X / 100.0f, -short3.Y / 100.0f, short3.Z / 100.0f))
                             .ToArray();
                     }
@@ -105,9 +105,9 @@ namespace K4A.VFX
                 _colorTexture2D.Apply();
             }
 
-            if (xyzs != null)
+            if (_xyzs != null)
             {
-                _depthTexture2D.SetPixels(xyzs);
+                _depthTexture2D.SetPixels(_xyzs);
                 _depthTexture2D.Apply();
             }
         }
@@ -115,11 +115,11 @@ namespace K4A.VFX
 
         private void OnApplicationQuit()
         {
-            isRunning = false;
-            if (kinect != null)
+            _isRunning = false;
+            if (_kinect != null)
             {
-                kinect.StopCameras();
-                kinect.Dispose();
+                _kinect.StopCameras();
+                _kinect.Dispose();
             }
         }
     }
