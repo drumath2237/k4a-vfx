@@ -90,7 +90,7 @@ namespace K4A.VFX
 
                         Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
                         xyzs = xyzImage.GetPixels<Short3>().ToArray()
-                            .Select(short3 => new Color(short3.X / 100.0f, short3.Z / 100.0f, short3.Y / 100.0f))
+                            .Select(short3 => new Color(short3.X / 100.0f, -short3.Y / 100.0f, short3.Z / 100.0f))
                             .ToArray();
                     }
                 }
