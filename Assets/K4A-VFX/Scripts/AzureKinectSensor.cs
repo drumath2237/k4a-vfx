@@ -89,7 +89,8 @@ namespace K4A.VFX
                         _rawColorData = colorImage.Memory.ToArray();
 
                         Image xyzImage = _kinectTransformation.DepthImageToPointCloud(capture.Depth);
-                        _xyzs = xyzImage.GetPixels<Short3>().ToArray()
+                        _xyzs = xyzImage.GetPixels<Short3>()
+                            .ToArray()
                             .Select(short3 => new Color(short3.X / 100.0f, -short3.Y / 100.0f, short3.Z / 100.0f))
                             .ToArray();
                     }

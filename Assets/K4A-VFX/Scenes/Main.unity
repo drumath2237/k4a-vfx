@@ -339,8 +339,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 018c5dd201e64069a19930801f97e872, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _effect: {fileID: 733450296}
-  _previewPlane: {fileID: 218840088}
+  effect: {fileID: 733450296}
+  previewPlane: {fileID: 218840088}
 --- !u!4 &524885567
 Transform:
   m_ObjectHideFlags: 0
