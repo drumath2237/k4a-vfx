@@ -20,7 +20,7 @@ MonoBehaviour:
     m_Framerate: 60
   m_DurationMode: 0
   m_MarkerTrack: {fileID: 0}
---- !u!114 &3844114410005074101
+--- !u!114 &3721278166347804299
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -59,7 +59,7 @@ MonoBehaviour:
       m_OutputResolution:
         m_CustomWidth: 1024
         m_CustomHeight: 1024
-        imageHeight: 1080
+        imageHeight: 720
         maxSupportedHeight: 2160
         m_AspectRatio:
           m_CustomAspectX: 1
@@ -109,7 +109,7 @@ MonoBehaviour:
       colorSpace: 0
       flipFinalOutput: 0
   m_AudioInputSettings:
-    preserveAudio: 0
+    preserveAudio: 1
 --- !u!114 &3937794827128084313
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -135,7 +135,7 @@ MonoBehaviour:
     m_Start: 1
     m_ClipIn: 0
     m_Asset: {fileID: 4023916389955382868}
-    m_Duration: 10
+    m_Duration: 20
     m_TimeScale: 1
     m_ParentTrack: {fileID: 3937794827128084313}
     m_EaseInDuration: 0
@@ -214,4 +214,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1e95aa6d658d694785bfde37c857fff, type: 3}
   m_Name: RecorderClip
   m_EditorClassIdentifier: 
-  settings: {fileID: 3844114410005074101}
+  settings: {fileID: 3721278166347804299}
