@@ -1,6 +1,6 @@
 # k4a-vfx
 
-[![budge](https://img.shields.io/badge/Azure%20Kinect%20Sensor-1.4.4-blue)](https://github.com/microsoft/Azure-Kinect-Sensor-SDK)
+[![budge](https://img.shields.io/badge/Azure%20Kinect%20Sensor-1.4.1-blue)](https://github.com/microsoft/Azure-Kinect-Sensor-SDK)
 
 ![gif](./docs/voxel-vfx-gif.gif)
 
