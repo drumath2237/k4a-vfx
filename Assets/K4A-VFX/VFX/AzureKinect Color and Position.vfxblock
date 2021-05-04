@@ -6,7 +6,7 @@ VisualEffectResource:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: AuzreKinectPointCloud_SubgraphBlock
+  m_Name: AzureKinect Color and Position
   m_Graph: {fileID: 2}
   m_ShaderSources: []
   m_Infos:
@@ -66,7 +66,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d4c867f6b72b714dbb5fd1780afe208, type: 3}
-  m_Name: AuzreKinectPointCloud_SubgraphBlock
+  m_Name: AzureKinect Color and Position
   m_EditorClassIdentifier: 
   m_Parent: {fileID: 0}
   m_Children:
